@@ -1,0 +1,67 @@
+{
+  "name": "copilot-review-reader",
+  "displayName": "Copilot Review Reader",
+  "description": "Exposes local Copilot review comments as a LanguageModelTool so Copilot Chat can read and act on them.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "review-reader.dumpComments",
+        "title": "Review Reader: Dump Comments to File"
+      },
+      {
+        "command": "review-reader.showComments",
+        "title": "Review Reader: Show Review Comments"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "review-reader_getReviewComments",
+        "tags": [
+          "review",
+          "comments",
+          "copilot"
+        ],
+        "toolReferenceName": "reviewComments",
+        "displayName": "Get Review Comments",
+        "modelDescription": "Reads code review comments from two sources: (1) local Copilot code review comments from the VS Code Comments panel, and (2) GitHub PR review comments fetched via the gh CLI. Returns a JSON array of objects, each with: file (relative path), line, endLine, column, author, body (comment text), source ('local' or 'pr'), suggestion (optional fix), outdated (for PR comments), url (for PR comments). Use the 'source' parameter to filter: 'local' for Copilot review only, 'pr' for GitHub PR comments only, 'all' (default) for both.",
+        "userDescription": "Read review comments from local Copilot review and GitHub PR",
+        "icon": "$(comment-discussion)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": ["local", "pr", "all"],
+              "description": "Which source to read comments from: 'local' = Copilot review in Comments panel, 'pr' = GitHub PR comments via gh CLI, 'all' = both (default)",
+              "default": "all"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.7.1",
+    "typescript": "^5.7.0"
+  }
+}
