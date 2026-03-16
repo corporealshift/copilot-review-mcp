@@ -17,6 +17,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "review-reader.requestReview",
+        "title": "Review Reader: Request Copilot Review"
+      },
+      {
         "command": "review-reader.dumpComments",
         "title": "Review Reader: Dump Comments to File"
       },
@@ -47,6 +51,36 @@
               "enum": ["local", "pr", "all"],
               "description": "Which source to read comments from: 'local' = Copilot review in Comments panel, 'pr' = GitHub PR comments via gh CLI, 'all' = both (default)",
               "default": "all"
+            }
+          }
+        }
+      },
+      {
+        "name": "review-reader_startReview",
+        "tags": [
+          "review",
+          "copilot",
+          "start"
+        ],
+        "toolReferenceName": "startReview",
+        "displayName": "Start Copilot Review",
+        "modelDescription": "Programmatically triggers a Copilot code review on uncommitted changes in the current workspace. The 'scope' parameter controls what to review: 'all' (default) reviews all uncommitted changes (staged + unstaged), 'staged' reviews only staged changes, 'unstaged' reviews only working tree changes. Set 'waitForComments' to true (default) to wait for the review to complete and return the resulting comments, or false to fire-and-forget. Returns a JSON object with success status and, if waitForComments is true, the review comments.",
+        "userDescription": "Start a Copilot code review on uncommitted changes",
+        "icon": "$(code-review)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": ["all", "staged", "unstaged"],
+              "description": "What to review: 'all' = staged + unstaged (default), 'staged' = index only, 'unstaged' = working tree only",
+              "default": "all"
+            },
+            "waitForComments": {
+              "type": "boolean",
+              "description": "If true (default), wait up to 60s for review comments to appear and return them. If false, start the review and return immediately.",
+              "default": true
             }
           }
         }

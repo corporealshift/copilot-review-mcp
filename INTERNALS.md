@@ -166,15 +166,62 @@ Returns general PR discussion comments (not attached to specific lines). These h
 - **Repository context is automatic** — `{owner}` and `{repo}` are resolved from the git remote
 - **No token management in extension code** — avoids storing or passing secrets
 
+## Part 3: Programmatic review initiation
+
+The extension can trigger Copilot's code review on uncommitted changes without any UI interaction. This is exposed both as a VS Code command and as a LanguageModelTool.
+
+### How it works
+
+Copilot Chat registers several hidden commands (not shown in the command palette) that start reviews:
+
+| Command | Scope |
+|---------|-------|
+| `github.copilot.chat.review.changes` | All uncommitted changes |
+| `github.copilot.chat.review.stagedChanges` | Staged (index) only |
+| `github.copilot.chat.review.unstagedChanges` | Working tree only |
+
+These are invoked via `vscode.commands.executeCommand()`. Under the hood, each one instantiates Copilot Chat's review runner class and calls `.review(scope, ProgressLocation.Notification)`, which:
+
+1. Computes git diffs for the selected scope
+2. Sends the diffs to the Copilot model for review
+3. Creates comment threads on the `github-copilot-review` CommentController
+4. Shows progress in a notification toast
+
+### The `#startReview` tool
+
+The `review-reader_startReview` tool (referenced as `#startReview` in Copilot Chat) accepts:
+
+- **`scope`** — `"all"` (default), `"staged"`, or `"unstaged"`
+- **`waitForComments`** — `true` (default) to poll for up to 60 seconds until review comments appear, or `false` to fire-and-forget
+
+When `waitForComments` is true, the tool polls every 2 seconds using the same object graph walker that `#reviewComments` uses. Once comments appear (or the timeout elapses), it returns them inline — so a single tool call can start a review and return the results.
+
+### End-to-end flow
+
+```
+Agent calls #startReview { scope: "all" }
+  → executeCommand('github.copilot.chat.review.changes')
+    → Copilot Chat computes diffs, sends to model
+    → Review comments appear on CommentController
+  → Poll loop detects _comments via object graph walk
+  → Return comments as JSON
+```
+
+This enables fully autonomous workflows like "review my uncommitted changes and fix all the issues" without any manual button clicks.
+
+### The `Review Reader: Request Copilot Review` command
+
+For manual use, the `review-reader.requestReview` command shows a quick-pick menu to select the scope (All / Staged / Unstaged) and triggers the review.
+
 ## LanguageModelTool registration
 
-The tool is registered via two mechanisms:
+Two tools are registered, each via static declaration in `package.json` and runtime registration in `activate()`:
 
-1. **Static declaration** in `package.json` under `contributes.languageModelTools` — this tells VS Code the tool exists, its name (`review-reader_getReviewComments`), reference name (`reviewComments`), input schema, and description.
+1. **`review-reader_getReviewComments`** (`#reviewComments`) — Reads existing review comments from local Copilot review and/or GitHub PR.
 
-2. **Runtime registration** in `activate()` via `vscode.lm.registerTool()` — this provides the actual implementation (the `invoke` method).
+2. **`review-reader_startReview`** (`#startReview`) — Triggers a new Copilot review on uncommitted changes and optionally waits for the results.
 
-The `canBeReferencedInPrompt: true` flag allows users to reference the tool as `#reviewComments` in Copilot Chat. The `modelDescription` field tells the language model what the tool does and what parameters it accepts, so the model can decide when to call it autonomously.
+The `canBeReferencedInPrompt: true` flag allows users to reference the tools as `#reviewComments` and `#startReview` in Copilot Chat. The `modelDescription` fields tell the language model what each tool does, so it can decide when to call them autonomously.
 
 ## Versioning risks
 

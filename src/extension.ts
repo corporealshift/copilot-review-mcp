@@ -21,6 +21,11 @@ interface ToolInput {
   source?: 'local' | 'pr' | 'all'
 }
 
+interface StartReviewInput {
+  scope?: 'all' | 'staged' | 'unstaged'
+  waitForComments?: boolean
+}
+
 let cachedComments: ReviewComment[] = []
 const debugLog: string[] = []
 
@@ -480,6 +485,91 @@ function setupInterceptor(): void {
   }
 }
 
+const reviewScopeCommands: Record<string, string> = {
+  all: 'github.copilot.chat.review.changes',
+  staged: 'github.copilot.chat.review.stagedChanges',
+  unstaged: 'github.copilot.chat.review.unstagedChanges',
+}
+
+async function startCopilotReview(scope: string): Promise<{ started: boolean; error?: string }> {
+  const command = reviewScopeCommands[scope] ?? reviewScopeCommands.all
+  try {
+    await vscode.commands.executeCommand(command)
+    return { started: true }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    log('[startReview] Error executing ' + command + ': ' + message)
+    return { started: false, error: message }
+  }
+}
+
+async function waitForReviewComments(timeoutMs: number): Promise<ReviewComment[]> {
+  const pollInterval = 2000
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    const service = findReviewService()
+    if (service) {
+      const comments = extractComments(service)
+      if (comments.length > 0) return comments
+    }
+
+    const intercepted = extractFromIntercepted()
+    if (intercepted.length > 0) return intercepted
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval))
+  }
+
+  return []
+}
+
+class StartReviewTool implements vscode.LanguageModelTool<StartReviewInput> {
+  async invoke(
+    options: vscode.LanguageModelToolInvocationOptions<StartReviewInput>,
+    _token: vscode.CancellationToken
+  ): Promise<vscode.LanguageModelToolResult> {
+    const scope = options.input?.scope ?? 'all'
+    const waitForComments = options.input?.waitForComments ?? true
+
+    log('[startReview] Starting review with scope: ' + scope)
+    const result = await startCopilotReview(scope)
+
+    if (!result.started) {
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(JSON.stringify({
+          success: false,
+          error: result.error ?? 'Failed to start review',
+        })),
+      ])
+    }
+
+    if (waitForComments) {
+      log('[startReview] Waiting for review comments...')
+      const comments = await waitForReviewComments(60000)
+      cachedComments = comments
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(JSON.stringify({
+          success: true,
+          scope,
+          commentsFound: comments.length,
+          comments: comments.length > 0 ? comments : undefined,
+          message: comments.length > 0
+            ? 'Review complete with ' + comments.length + ' comment(s)'
+            : 'Review started but no comments appeared within timeout. The review may still be in progress — use #reviewComments to check later.',
+        }, null, 2)),
+      ])
+    }
+
+    return new vscode.LanguageModelToolResult([
+      new vscode.LanguageModelTextPart(JSON.stringify({
+        success: true,
+        scope,
+        message: 'Review started. Use #reviewComments to read the results once the review completes.',
+      }, null, 2)),
+    ])
+  }
+}
+
 class ReviewCommentsTool implements vscode.LanguageModelTool<ToolInput> {
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<ToolInput>,
@@ -554,6 +644,34 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.lm.registerTool('review-reader_getReviewComments', new ReviewCommentsTool())
+  )
+
+  context.subscriptions.push(
+    vscode.lm.registerTool('review-reader_startReview', new StartReviewTool())
+  )
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('review-reader.requestReview', async () => {
+      const scopeOptions = ['All Changes', 'Staged Changes', 'Unstaged Changes']
+      const picked = await vscode.window.showQuickPick(scopeOptions, {
+        placeHolder: 'What should Copilot review?',
+      })
+      if (!picked) return
+
+      const scopeMap: Record<string, string> = {
+        'All Changes': 'all',
+        'Staged Changes': 'staged',
+        'Unstaged Changes': 'unstaged',
+      }
+      const scope = scopeMap[picked] ?? 'all'
+
+      const result = await startCopilotReview(scope)
+      if (result.started) {
+        vscode.window.showInformationMessage('Copilot review started (' + scope + ' changes)')
+      } else {
+        vscode.window.showErrorMessage('Failed to start review: ' + (result.error ?? 'unknown error'))
+      }
+    })
   )
 
   context.subscriptions.push(

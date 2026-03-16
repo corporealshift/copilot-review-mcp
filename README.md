@@ -93,6 +93,10 @@ The tool returns a JSON array. Each comment looks like:
 | `outdated` | PR only — whether the comment is on outdated code |
 | `url` | PR only — GitHub API URL for the comment |
 
+## Example Agent
+
+An example agent definition is included in [example-agent.md](./example-agent.md). It defines a "Review Resolver" agent that autonomously reads review comments, triages and fixes them, triggers local reviews in a loop, and commits the results — all without human intervention.
+
 ## Limitations
 
 - **Local comments require an active review.** If no Copilot review is running, `source: "local"` returns nothing.
