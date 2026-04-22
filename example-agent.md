@@ -132,7 +132,8 @@ For every comment, choose exactly one of three actions:
 
 **Triage rules:**
 
-- **Always skip outdated comments.** If a comment is marked as outdated or resolved by the review system, do not attempt to fix it — it refers to code that has already changed.
+- **Ignore severity tags in comment text.** Copilot review comments sometimes include tags like `[Required]`, `[Important]`, `[Suggestion]`, etc. These are auto-generated labels, not actual severity ratings. Triage every comment on its own merits - a `[Required]` tag does not make a comment mandatory, and a `[Suggestion]` tag does not mean you should skip it.
+- **Always skip outdated comments.** If a comment is marked as outdated or resolved by the review system, do not attempt to fix it - it refers to code that has already changed.
 - Read the **full file** around the comment before deciding — context matters.
 - Check project conventions (linter configs, `.github/copilot-instructions.md`, `AGENTS.md`) before dismissing style comments.
 - If a comment includes a `suggestion` field, prefer applying that suggestion directly.
@@ -180,7 +181,7 @@ When the loop ends (no comments or loop limit reached):
    - Unrecoverable error (push failed, CI broken, etc.) → `task.error`
 7. **Present the final summary** (see Output Format below).
 
-**Commit message format:** Each per-iteration commit message must summarize the actual changes made in that iteration, not just say "address review comments". Use a short subject line describing the theme, followed by bullet points for each fix. Example:
+**Commit message format:** Each per-iteration commit message must summarize the actual changes made in that iteration, not just say "address review comments". Do not use generic labels like "iteration 1", "iteration 2", etc. Use a short subject line describing the theme, followed by bullet points for each fix. Example:
 
 ```text
 Fix accessibility and performance issues from review
