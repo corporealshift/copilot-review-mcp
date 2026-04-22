@@ -18,6 +18,17 @@ This extension solves both problems by registering a [LanguageModelTool](https:/
 
 ### Install
 
+Install by downloading the extension from the releases section on github, then run
+
+`code --install-extension copilot-review-reader-0.1.0.vsix --force`
+
+You will need to reload vscode to enable the extension. Then copy the example agent into one of these locations:
+
+- **Project-scoped:** `.github/agents/review-resolver.md` (available only in that repo)
+- **User-scoped:** `~/.copilot/agents/review-resolver.md` (available in all workspaces)
+
+#### From Source
+
 ```sh
 cd copilot-review-reader
 yarn install
@@ -38,13 +49,26 @@ Reference the tool with `#reviewComments` in any Copilot Chat message:
 Read #reviewComments and fix all the issues
 ```
 
-Or let an agent call it automatically — the tool is registered as `review-reader_getReviewComments` and agents can invoke it with a `source` parameter:
+Or let an agent call it automatically. The extension registers two tools:
+
+#### `#reviewComments` (`review-reader_getReviewComments`)
+
+Reads existing review comments. Use the `source` parameter to filter:
 
 | `source` | What it reads |
 |----------|---------------|
 | `"all"` (default) | Both local Copilot review comments and GitHub PR comments |
 | `"local"` | Only comments from the VS Code Comments panel (Copilot review) |
 | `"pr"` | Only comments from the GitHub PR (via `gh` CLI) |
+
+#### `#startReview` (`review-reader_startReview`)
+
+Programmatically triggers a Copilot code review on uncommitted changes and optionally waits for results.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `scope` | `"all"` | `"all"` = staged + unstaged, `"staged"` = index only, `"unstaged"` = working tree only |
+| `waitForComments` | `true` | If `true`, blocks until the review completes and returns the comments. If `false`, fires and returns immediately. |
 
 ### Automated workflow
 
@@ -100,5 +124,5 @@ An example agent definition is included in [example-agent.md](./example-agent.md
 ## Limitations
 
 - **Local comments require an active review.** If no Copilot review is running, `source: "local"` returns nothing.
-- **PR comments require `gh` CLI.** The tool shells out to `gh api` — if `gh` is not installed or not authenticated, PR comments won't load.
+- **PR comments require `gh` CLI.** The tool shells out to `gh api` — if `gh` is not installed or not authenticated, PR comments won't load. The example agent's GraphQL mutations (replying to and resolving PR threads) require the `repo` scope. If `gh auth status` doesn't show `repo`, re-run `gh auth login` or `gh auth refresh -s repo`.
 - **Object graph traversal is version-sensitive.** The local comment reader walks Copilot Chat's internal object graph, which can change between extension updates. See [INTERNALS.md](./INTERNALS.md) for details.
